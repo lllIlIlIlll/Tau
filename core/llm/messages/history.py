@@ -1,5 +1,9 @@
 import json, re
-from core.llm.transport import safeprint
+
+_oldprint = print
+def safeprint(*argv):
+    try: _oldprint(*argv)
+    except OSError: pass
 print = safeprint
 
 def compress_history_tags(messages, keep_recent=10, max_len=800, force=False, interval=5):
