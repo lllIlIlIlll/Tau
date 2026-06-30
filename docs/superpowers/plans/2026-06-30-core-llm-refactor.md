@@ -22,6 +22,7 @@
   - 任何 `apps/*` / `plugins/*` / `tests/*`（除 `scripts/smoke_llmcore.py`）
 - 重构后**新增/修改**:
   - 新增 `core/llm/messages/__init__.py` / `messages/schema.py` / `messages/history.py` / `messages/response.py`
+  - 修改 `core/llm/transport.py:4` 一行（`safeprint` import 来源从 `.trim` 改为 `.messages.history`）
   - 修改 `core/llm/session.py:3` / `clients.py:7` / `providers/claude.py:3-6` / `providers/openai.py:3-8` 的 import 行
   - 修改 `core/llm/__init__.py` 顶部 docstring
   - 修改 `scripts/smoke_llmcore.py` 的 import 行与 `__module__` 断言
@@ -169,25 +170,29 @@ git commit -m "refactor(llm): move response.py to messages/response.py (verbatim
 
 ---
 
-## Task 3: 搬迁 trim.py → messages/history.py（剔除 safeprint）
+## Task 3: 搬迁 trim.py → messages/history.py（safeprint 保留同文件）
 
 **Files:**
 - Create: `core/llm/messages/history.py`
+- Modify: `core/llm/transport.py:4`（一行 import 来源变更）
 - Read for copy: `core/llm/trim.py`
 
 **Interfaces:**
-- Consumes: `safeprint`（来自 `core.llm.transport`，本任务 import 它而非定义）
-- Produces: `trim_messages_history(history, sess)`、`compress_history_tags(messages, keep_recent=10, max_len=800, force=False, interval=5)`、`_sanitize_leading_user_msg(msg)`
+- Produces: `trim_messages_history(history, sess)`、`compress_history_tags(messages, keep_recent=10, max_len=800, force=False, interval=5)`、`_sanitize_leading_user_msg(msg)`、`safeprint(*argv)`
 
 **Step 1:**
 
-- [ ] **Step 1: 创建 `messages/history.py`**
+- [ ] **Step 1: 创建 `messages/history.py`（**逐字复制** `core/llm/trim.py` 73 行，包括 `safeprint` 定义本身）**
 
-文件路径 `core/llm/messages/history.py`。**复制 `core/llm/trim.py` 全部 73 行**但**删除第 4-7 行的 `safeprint` 定义**与第 5 行 `print = safeprint`，并在文件顶部改为从 `core.llm.transport` 导入 `safeprint`：
+文件路径 `core/llm/messages/history.py`。**完整复制** `core/llm/trim.py` 全部 73 行，不做任何删改：
 
 ```python
 import json, re
-from core.llm.transport import safeprint
+
+_oldprint = print
+def safeprint(*argv):
+    try: _oldprint(*argv)
+    except OSError: pass
 print = safeprint
 
 def compress_history_tags(messages, keep_recent=10, max_len=800, force=False, interval=5):
@@ -257,23 +262,49 @@ def trim_messages_history(history, sess):
     print(f'[Debug] Trimmed context, current: {cost()} chars, {len(history)} messages.')
 ```
 
-注意顶部 `from core.llm.transport import safeprint` —— 是相对路径 `from ..transport import safeprint` 的绝对等价；这里用绝对路径避免后续 messages 包内相对路径混淆（`history.py` 与 `transport.py` 同级；`from ..transport` 在 `messages/` 内部也可工作，但显式绝对路径更不易出错）。
+**为什么保留 `safeprint` 定义**：原 `core/llm/trim.py` 自带 `safeprint` 定义（紧跟 `import json, re` 后），与同文件的 `compress_history_tags` 等函数共用。`transport.py:4` 原本就 `from .trim import safeprint` 做 re-export——说明 `safeprint` 的实际归属是 `trim.py`。搬迁时保持同文件归属，不挪动、不重定义。
 
-- [ ] **Step 2: 验证 `messages.history` 可独立 import**
+- [ ] **Step 2: 修改 `transport.py:4` 的 import 来源**
 
-Run: `python -c "from core.llm.messages.history import trim_messages_history, compress_history_tags, _sanitize_leading_user_msg; print(trim_messages_history.__module__)"`
+修改前 (`core/llm/transport.py` 第 4 行):
+```python
+from .trim import safeprint
+```
+
+修改后:
+```python
+from .messages.history import safeprint
+```
+
+依赖方向：transport → history（单向，无循环）。
+
+- [ ] **Step 3: 验证 `messages.history` 可独立 import**
+
+Run: `python -c "from core.llm.messages.history import trim_messages_history, compress_history_tags, _sanitize_leading_user_msg, safeprint; print(trim_messages_history.__module__)"`
 Expected: 输出 `core.llm.messages.history`
 
-- [ ] **Step 3: 验证旧 `core.llm.trim` 仍可用**
+- [ ] **Step 4: 验证旧 `core.llm.trim` 仍可用**
 
 Run: `python -c "from core.llm.trim import trim_messages_history; print(trim_messages_history.__module__)"`
 Expected: 输出 `core.llm.trim`（旧文件仍在）
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: 验证 `safeprint` 是同一函数对象（双向 import）**
+
+Run: `python -c "from core.llm.messages.history import safeprint as sp1; from core.llm.transport import safeprint as sp2; assert sp1 is sp2; print('same function: OK')"`
+Expected: 输出 `same function: OK`
+
+- [ ] **Step 6: 验证依赖方向单向**
+
+Run: `python -c "import ast; h=open('core/llm/messages/history.py').read(); t=open('core/llm/transport.py').read(); print('history imports transport?', 'transport' in h); print('transport imports history?', 'history' in t); assert 'transport' not in h; assert 'history' in t; print('acyclic direction: OK')"`
+Expected: 输出 `history imports transport? False`、`transport imports history? True`、`acyclic direction: OK`
+
+- [ ] **Step 7: Commit（两个文件分别 commit，或一次 commit 都行）**
 
 ```bash
 git add core/llm/messages/history.py
-git commit -m "refactor(llm): move trim.py to messages/history.py (safeprint imported from transport)"
+git commit -m "refactor(llm): move trim.py to messages/history.py (safeprint kept in same file)"
+git add core/llm/transport.py
+git commit -m "refactor(llm): import safeprint from messages.history instead of trim"
 ```
 
 ---
@@ -689,6 +720,8 @@ git commit -m "refactor(llm): update providers/{claude,openai} import paths to m
 - Modify: `scripts/smoke_llmcore.py:17-43`
 
 **原因：** Task 5 的 `sys.modules` 兼容层让旧路径 import 仍可解析，但函数/类的 `__module__` 属性由其 `def` 语句所在文件决定——搬迁后必然从 `core.llm.{trim,convert,response}` 变成 `core.llm.messages.{history,schema,response}`。smoke 脚本里有 6 条相关断言需要同步改写。
+
+**附加注意：** smoke 脚本当前第 17 行 `from core.llm.trim import ... safeprint` —— `safeprint` 在 Task 3 后定义在 `core.llm.messages.history`，需要从 transport 行导入（`safeprint` 已由 transport re-export）。
 
 **Step 1:**
 

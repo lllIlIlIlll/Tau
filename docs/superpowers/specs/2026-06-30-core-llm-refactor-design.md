@@ -70,7 +70,7 @@ core/llm/                           # 总入口（外部零改动）
 | `trim.py: compress_history_tags` | `messages/history.py` | 历史长消息压缩 |
 | `trim.py: _sanitize_leading_user_msg` | `messages/history.py` | 头位 user 消息的 tool_result 改写 |
 | `trim.py: trim_messages_history` | `messages/history.py` | 历史总成本上限裁剪 |
-| `trim.py: safeprint` | **留在** `transport.py` | 静默 print 防 OSError；多文件引用不挪 |
+| `trim.py: safeprint` | **`safeprint` 定义保留在 `messages/history.py`**；原 `transport.py:4` 的 `from .trim import safeprint` 改为 `from .messages.history import safeprint`（history 不依赖 transport；transport 依赖 history） | 静默 print 防 OSError；定义与原始 `trim.py` 同一文件 |
 | `response.py`（全部内容） | `messages/response.py`（原样搬移） | `MockResponse` / `MockToolCall` / `MockFunction` / `tryparse` / `_parse_text_tool_calls` / `_ensure_text_block` |
 | `clients.py: ToolClient._parse_mixed_response` 内调用 `_parse_text_tool_calls` | import 改为 `from .messages.response import _parse_text_tool_calls` | 内部依赖路径变更 |
 | `providers/claude.py` 中 4 行 `from ..convert/trim/response` | 改为 `from ..messages.schema/...` / `from ..messages.response import ...` / `from ..messages.history import ...` | import 路径更新 |
@@ -79,7 +79,7 @@ core/llm/                           # 总入口（外部零改动）
 
 ### 关键不变量
 
-- `safeprint` 不挪位置。`transport.py`、`clients.py`、`providers/*.py` 都 import 它；搬它反而制造循环 import 风险。
+- `safeprint` **定义保留在 `messages/history.py`**（与 `compress_history_tags` 的 `[Cut]`/`[Debug]` log 同处）。`transport.py:4` 的 `from .trim import safeprint` 改为 `from .messages.history import safeprint`。多文件 import safeprint 仍从 `transport.py` 间接获得（re-export），但**单向依赖**：transport → history，无循环。
 - `messages/response.py` 的所有函数都是**纯函数**，从 `response.py` 文件级搬到 `messages/response.py` 一字不改。
 - `messages/__init__.py` 必须做 `sys.modules` 兼容映射：
   ```python
