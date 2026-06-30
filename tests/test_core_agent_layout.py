@@ -55,3 +55,13 @@ def test_facade_exports():
     # facade 符号指向子模块（非空 re-export）
     assert core.agent.Tau.__module__ == "core.agent.runtime"
     assert core.agent.TauHandler.__module__ == "core.agent.handler"
+
+
+def test_shim_taumain_redirects():
+    from core.taumain import Tau
+    assert Tau.__module__ == "core.agent.runtime"  # shim 必须指向新实现
+
+
+def test_shim_handler_redirects():
+    from core.handler import TauHandler
+    assert TauHandler.__module__ == "core.agent.handler"
