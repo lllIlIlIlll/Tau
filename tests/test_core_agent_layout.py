@@ -46,3 +46,12 @@ def test_runtime_module_importable():
     from core.agent.runtime import Tau, get_system_prompt, load_tool_schema, main
     assert Tau.__module__ == "core.agent.runtime"
     assert callable(get_system_prompt) and callable(load_tool_schema) and callable(main)
+
+
+def test_facade_exports():
+    import core.agent
+    for sym in ("Tau", "TauHandler", "agent_runner_loop", "BaseHandler", "StepOutcome"):
+        assert hasattr(core.agent, sym), f"core.agent facade 缺 {sym}"
+    # facade 符号指向子模块（非空 re-export）
+    assert core.agent.Tau.__module__ == "core.agent.runtime"
+    assert core.agent.TauHandler.__module__ == "core.agent.handler"
