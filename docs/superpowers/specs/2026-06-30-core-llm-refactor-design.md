@@ -190,13 +190,19 @@ clients.NativeToolClient ──┐
    - `providers/openai.py`：同上。
    - `clients.py`：1 行 `_parse_text_tool_calls` import → `from .messages.response import _parse_text_tool_calls`。
    - `session.py`：1 行 `from .trim import` → `from .messages.history import trim_messages_history` + `from .transport import safeprint`。
-7. **删除旧文件**：`rm core/llm/convert.py core/llm/trim.py core/llm/response.py`。**删除前** `git grep "from core\.llm\.convert\|from core\.llm\.trim\|from core\.llm\.response"` 应无外部残留（仅 `__init__.py` re-export 行 + 兼容映射）。
-8. **更新 `core/llm/__init__.py` 顶部 docstring**：从"9 个文件"叙述改成"5 个子包"叙述；9 行 `from ... import ...` 主体**一字不动**。
-9. **最终验证**：
-   - `python -c "import core.llm; print(sorted(dir(core.llm)))"` 与重构前对照，公开符号集合不变。
-   - `pytest tests/test_taukey_path.py` 绿。
-   - `python scripts/smoke_llmcore.py` 跑通。
-   - `git grep -nE "from core\.llm\.convert|from core\.llm\.trim|from core\.llm\.response"` → 应只剩 `__init__.py` 9 行 re-export 主体（这些是公开 API，不是兼容层）；**核心兼容层在 `messages/__init__.py` 的 `sys.modules` 映射**。
+7. **更新 `scripts/smoke_llmcore.py`**：脚本里 12 条 `assert ... __module__.endswith('llm.trim/convert/response/transport/clients/providers.*')` 断言改为新模块路径：
+   - `llm.trim` → `llm.messages.history`
+   - `llm.convert` → `llm.messages.schema`
+   - `llm.response` → `llm.messages.response`
+   - 其余（`llm.transport` / `llm.session` / `llm.clients` / `llm.providers.*`）不变
+   - `from core.llm.trim import ...` / `from core.llm.convert import ...` 改为 `from core.llm.messages.history import ...` / `from core.llm.messages.schema import ...`
+8. **删除旧文件**：`rm core/llm/convert.py core/llm/trim.py core/llm/response.py`。**删除前** `git grep "from core\.llm\.convert\|from core\.llm\.trim\|from core\.llm\.response"` 应无外部残留（仅 `__init__.py` re-export 行 + 兼容映射）。
+9. **更新 `core/llm/__init__.py` 顶部 docstring**：从"9 个文件"叙述改成"5 个子包"叙述；9 行 `from ... import ...` 主体**一字不动**。
+10. **最终验证**：
+    - `python -c "import core.llm; print(sorted(dir(core.llm)))"` 与重构前对照，公开符号集合不变。
+    - `pytest tests/test_taukey_path.py` 绿。
+    - `python scripts/smoke_llmcore.py` 跑通（新断言全部绿）。
+    - `git grep -nE "from core\.llm\.convert|from core\.llm\.trim|from core\.llm\.response"` → 应只剩 `__init__.py` 9 行 re-export 主体（这些是公开 API，不是兼容层）；**核心兼容层在 `messages/__init__.py` 的 `sys.modules` 映射**。
 
 ### 回滚预案
 
@@ -208,10 +214,10 @@ clients.NativeToolClient ──┐
 
 - [ ] `core/llm/__init__.py` 9 行 re-export 一字不动
 - [ ] `core.llm.openai_tools_to_claude / MockResponse / MockToolCall / MockFunction / tryparse / ToolClient / NativeToolClient / ClaudeSession / NativeClaudeSession / LLMSession / NativeOAISession / MixinSession / BaseSession / resolve_session / resolve_client / fast_ask / reload_taukeys / auto_make_url / _load_taukeys / _record_usage` 全部仍可 `from core.llm import X`
-- [ ] 旧 import 路径 `from core.llm.convert import openai_tools_to_claude` 仍可解析
+- [ ] 旧 import 路径 `from core.llm.convert import openai_tools_to_claude` 仍可解析（靠 `messages/__init__.py` 的 `sys.modules` 兼容映射）
 - [ ] `from core.llm.response import ...` / `from core.llm.trim import ...` 通过 `sys.modules` 兼容层仍可解析
 - [ ] `tests/test_taukey_path.py` 全绿
-- [ ] `scripts/smoke_llmcore.py` 跑通
+- [ ] `scripts/smoke_llmcore.py` 跑通（**注意**: 该脚本当前断言内部 `__module__` 以 `llm.trim/convert/response/transport/clients/providers.*` 结尾——重构后这些断言需改写为 `llm.messages.{schema,history,response}`，详见迁移步骤 8 后的脚本更新）
 - [ ] `git grep` 验证外部调用方（`apps/*`、`plugins/*`、`scripts/*`）无 import 路径变更
 - [ ] `core/llm/convert.py` / `core/llm/trim.py` / `core/llm/response.py` 物理删除
 
