@@ -1,9 +1,9 @@
 """Anthropic API (Claude) — SSE/JSON parsers + Session classes."""
 import json, re, uuid
-from ..trim import trim_messages_history, safeprint
-from ..transport import auto_make_url, _record_usage, _stream_with_retry
-from ..convert import _fix_messages, _drop_unsigned_thinking, _ensure_thinking_blocks, openai_tools_to_claude
-from ..response import MockToolCall, MockResponse, _parse_text_tool_calls, _ensure_text_block
+from ..messages.history import trim_messages_history
+from ..transport import safeprint, auto_make_url, _record_usage, _stream_with_retry
+from ..messages.schema import _fix_messages, _drop_unsigned_thinking, _ensure_thinking_blocks, openai_tools_to_claude
+from ..messages.response import MockToolCall, MockResponse, _parse_text_tool_calls, _ensure_text_block
 from ..session import BaseSession
 print = safeprint
 
