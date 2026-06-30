@@ -2,7 +2,7 @@
 
 Layout (post-2026-06-30 refactor):
 - keys.py         — taukey 加载/缓存
-- transport.py    — URL 构造、SSE 重试、usage、日志、safeprint
+- transport.py    — URL 构造、SSE 重试、usage、日志（safeprint 由 messages/history 定义并 re-export）
 - session.py      — BaseSession
 - clients.py      — ToolClient / NativeToolClient / MixinSession / 工厂
 - providers/      — 协议装订 + 流解析（claude / openai）

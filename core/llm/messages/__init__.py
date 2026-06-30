@@ -5,7 +5,7 @@
 
 子模块(搬迁自原 core/llm/{convert,trim,response}.py):
 - schema   — Claude ↔ OAI 消息/tool schema 双向转换
-- history  — 历史压缩/截断(safeprint 来自 transport)
+- history  — 历史压缩/截断（safeprint 本文件定义；transport re-export）
 - response — MockResponse / MockToolCall / tryparse / 文本工具回退解析
 
 旧路径兼容:
