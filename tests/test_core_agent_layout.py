@@ -11,3 +11,21 @@ def test_format_leaf_importable():
     assert "script" in get_pretty_json({"script": "a; b; c"})
     assert _clean_content("") == ""
     assert _compact_tool_args("ask_user", {"question": "q", "_index": 0}) == "q"
+
+
+def test_loop_module_importable():
+    from core.agent.loop import (
+        StepOutcome, BaseHandler, try_call_generator, exhaust, agent_runner_loop,
+    )
+    o = StepOutcome(data=1, next_prompt="x", should_exit=False)
+    assert o.data == 1 and o.next_prompt == "x" and o.should_exit is False
+    assert hasattr(BaseHandler, "dispatch") and hasattr(BaseHandler, "turn_end_callback")
+    assert callable(agent_runner_loop) and callable(exhaust) and callable(try_call_generator)
+
+
+def test_loop_no_upper_deps():
+    """loop.py 源码不得 import handler/runtime（依赖方向单向）。"""
+    import core.agent.loop as m, inspect
+    src = inspect.getsource(m)
+    assert "from .handler" not in src and "from .runtime" not in src
+    assert "import core.agent.handler" not in src and "import core.agent.runtime" not in src
