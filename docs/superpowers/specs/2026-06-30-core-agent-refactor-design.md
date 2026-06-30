@@ -79,7 +79,7 @@ format  ←  loop  ←  handler  ←  runtime
 - `handler.py`：依赖 `loop`（`BaseHandler` / `StepOutcome`）+ `format`（`json_default`）+ `core.tools.*` / `core.paths`。
 - `runtime.py`：依赖 `loop`（`agent_runner_loop`）+ `handler`（`TauHandler`）+ `core.tools.utils` / `core.paths` / `core.llm.*`。
 
-`loop` 可独立 import（`from core.agent.loop import agent_runner_loop` 不触发 runtime 的模块级副作用），符合 Pi「loop 无状态、不依赖上层」原则。
+`loop.py` 源码不 import `handler` / `runtime`（依赖方向单向，符合 Pi「loop 无状态、不依赖上层」原则——指源码级依赖方向，非 import 时副作用）。包 facade 为 eager re-export（与 [core/llm 重构](specs/2026-06-30-core-llm-refactor-design.md) 一致）：`import core.agent.<任意子模块>` 会先执行 `core/agent/__init__.py`，其中 `from .runtime import Tau` 触发 runtime 模块级 init（`load_tool_schema()` 等）——这与现状 `import core.taumain` 的副作用**完全等价**，无新增。
 
 ---
 
@@ -252,7 +252,7 @@ core.agent.loop.agent_runner_loop(client, sys_prompt, query, handler, TOOLS_SCHE
 - [ ] `from core.taumain import Tau` 通过（shim）
 - [ ] `from core.handler import TauHandler` 通过（shim）
 - [ ] `from core.agent import Tau, TauHandler, agent_runner_loop, BaseHandler, StepOutcome` 通过（包 facade）
-- [ ] `from core.agent.loop import agent_runner_loop` 不触发 runtime 副作用（loop 独立可 import）
+- [ ] `core/agent/loop.py` 源码不含对上层子模块的引用（`grep -nE 'from \.handler|from \.runtime' core/agent/loop.py` 返回空——依赖方向单向）
 - [ ] `core/agent_loop.py` 物理删除；`git grep -nE "from core\.agent_loop|from \.agent_loop"` 返回空
 - [ ] `python -m core.taumain --help` 退出码 0
 - [ ] `python core/taumain.py --help` 直接脚本路径：与重构前平价（若前可用则后可用）
