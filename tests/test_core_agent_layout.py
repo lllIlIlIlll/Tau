@@ -65,3 +65,10 @@ def test_shim_taumain_redirects():
 def test_shim_handler_redirects():
     from core.handler import TauHandler
     assert TauHandler.__module__ == "core.agent.handler"
+
+
+def test_agent_loop_module_removed():
+    """core.agent_loop 模块应已删除（无真实文件）。"""
+    import importlib.util
+    spec = importlib.util.find_spec("core.agent_loop")
+    assert spec is None, f"core.agent_loop 仍存在: {spec}"
