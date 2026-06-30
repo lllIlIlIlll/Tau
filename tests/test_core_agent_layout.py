@@ -72,3 +72,11 @@ def test_agent_loop_module_removed():
     import importlib.util
     spec = importlib.util.find_spec("core.agent_loop")
     assert spec is None, f"core.agent_loop 仍存在: {spec}"
+
+
+def test_readme_structure_updated():
+    src = open("README.md", encoding="utf-8").read()
+    # 新结构在 README 里出现
+    assert "core/agent/" in src or "agent/{loop" in src
+    # 旧三文件平铺描述已更新（不再把 agent_loop 当独立顶层模块列）
+    assert "agent_loop · handler · taumain" not in src
