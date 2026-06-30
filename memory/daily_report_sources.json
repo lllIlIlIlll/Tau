@@ -1,0 +1,56 @@
+{
+  "_note": "日报采集源配置 (daily_report_fetch.py 消费). daily_news=每日新闻层(Bing site:+RSS), analysis=智库低频分析(仅RSS,喂S4/S5). 纯数据平台/无RSS智库见 daily_report_reference_sources.md. rss 留空表示 feed 地址待逐源核实(spec 待验证假设),核实后填入即自动启用 RSS 通道. bing_sites 受限查询取前 4 个(SITES_PER_QUERY), 按新闻活跃度排序; 另有一条不限域兜底查询.",
+  "daily_news": {
+    "rare_earth": {
+      "keywords": ["rare earth export controls", "critical minerals supply chain"],
+      "bing_sites": ["usgs.gov", "iea.org", "energy.gov", "ga.gov.au", "erma.eu", "criticalmineral.org", "critical-minerals.us", "industry.gov.au", "natural-resources.canada.ca", "mines.gov.in", "jogmec.go.jp", "bgs.ac.uk", "deutsche-rohstoffagentur.de", "brgm.fr", "regcc.cn", "ac-rei.org.cn", "chinania.org.cn"],
+      "rss": []
+    },
+    "biomedicine": {
+      "keywords": ["drug shortage", "vaccine approval", "pandemic preparedness biosecurity"],
+      "bing_sites": ["who.int", "fda.gov", "cdc.gov", "ema.europa.eu", "ecdc.europa.eu", "nih.gov", "hhs.gov", "aspr.hhs.gov", "nmpa.gov.cn", "chinacdc.cn", "pmda.go.jp", "tga.gov.au", "africacdc.org", "paho.org", "ich.org"],
+      "rss": []
+    },
+    "food_agri": {
+      "keywords": ["food security crisis", "grain harvest", "food price index"],
+      "bing_sites": ["fao.org", "wfp.org", "usda.gov", "ers.usda.gov", "fews.net", "ipcinfo.org", "igc.int", "ifpri.org", "ifad.org", "moa.gov.cn", "agriculture.ec.europa.eu", "maff.go.jp", "cargill.com", "bunge.com", "adm.com", "cofco.com", "ldc.com"],
+      "rss": []
+    },
+    "climate": {
+      "keywords": ["extreme weather", "climate policy", "greenhouse gas emissions"],
+      "bing_sites": ["wmo.int", "unfccc.int", "ipcc.ch", "noaa.gov", "unep.org", "carbonbrief.org", "climateactiontracker.org", "wri.org", "eea.europa.eu", "metoffice.gov.uk", "theccc.org.uk", "climate.ec.europa.eu", "cma.gov.cn", "mee.gov.cn"],
+      "rss": []
+    },
+    "water": {
+      "keywords": ["transboundary water dispute", "water scarcity crisis", "river basin"],
+      "bing_sites": ["unwater.org", "mrcmekong.org", "siwi.org", "iwmi.cgiar.org", "nilebasin.org", "icpdr.org", "gwp.org", "unece.org", "ijc.org", "ibwc.gov", "icimod.org", "iwra.org", "lmcwater.org.cn", "cwc.gov.in"],
+      "rss": []
+    },
+    "polar_space": {
+      "keywords": ["deep sea mining", "Arctic Antarctic", "space debris satellite"],
+      "bing_sites": ["isa.org.jm", "arctic-council.org", "ccamlr.org", "nasa.gov", "esa.int", "unoosa.org", "noaa.gov", "ats.aq", "scar.org", "amap.no", "iho.int", "cnsa.gov.cn", "isro.gov.in", "space.commerce.gov"],
+      "rss": []
+    },
+    "population": {
+      "keywords": ["population demographics", "migration refugees", "fertility decline census"],
+      "bing_sites": ["unfpa.org", "iom.int", "un.org", "census.gov", "prb.org", "pewresearch.org", "ons.gov.uk", "ilo.org", "stats.gov.cn", "censusindia.gov.in", "stat.go.jp", "statcan.gc.ca", "abs.gov.au", "ibge.gov.br"],
+      "rss": []
+    },
+    "energy": {
+      "keywords": ["oil gas production OPEC", "nuclear energy", "renewable energy transition"],
+      "bing_sites": ["iea.org", "opec.org", "eia.gov", "iaea.org", "irena.org", "gecf.org", "ief.org", "energy.gov", "nrc.gov", "energy.ec.europa.eu", "aramco.com", "rosatom.ru", "minenergo.gov.ru", "moenergy.gov.sa"],
+      "rss": []
+    }
+  },
+  "analysis": {
+    "_note": "智库低频分析源, 仅 RSS, 命中喂报告 S4 趋势 / S5 情报价值. 已核实的 feed 地址如下, 由 fetch_tmwd_news.py 默认拉取.",
+    "think_tanks_rss": [
+      "https://www.csis.org/rss.xml",
+      "https://www.brookings.edu/feed/",
+      "https://www.cfr.org/rss.xml",
+      "https://www.chathamhouse.org/rss.xml",
+      "https://carnegieendowment.org/rss.xml",
+      "https://www.rand.org/news/news.xml"
+    ]
+  }
+}

@@ -1,0 +1,180 @@
+# temp/ 整体忽略（运行时配置/产物/日志），仅放行 *.example 模板文件
+temp/*
+!temp/*.example
+tmp/
+
+
+
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+.streamlit/
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+.DS_Store
+Thumbs.db
+
+*.log
+.env
+auth.json
+model_responses.txt
+
+# Sensitive files (API keys, credentials)
+.tau/taukey.py
+.tau/*.bak.*
+
+# output.txt: 临时调试输出/对话流 dump, 避免误提交
+output.txt
+
+tasks/
+
+# Tau local config (sensitive email credentials, analogous to taukey.py)
+.tau/
+
+*.zip
+*.exe
+
+memory/*
+!memory/__init__.py
+!memory/memory_management_sop.md
+!memory/email_config.py
+!memory/email_send.py
+!memory/email_setup_sop.md
+
+# Allow tracking of specific SOPs
+!memory/web_setup_sop.md
+!memory/autonomous_operation_sop.md
+!memory/autonomous_operation_sop/
+!memory/autonomous_operation_sop/**
+!memory/scheduled_task_sop.md
+!memory/daily_report_sop.md
+!memory/daily_report_render.py
+!memory/daily_report_validate.py
+!memory/daily_report_build_today.py
+!memory/daily_report_instruction.md
+!memory/daily_report_fetch.py
+!memory/daily_report_sources.json
+!memory/daily_report_reference_sources.md
+!memory/daily_report_render_fallback.py
+memory/global_mem.txt
+memory/global_mem_insight.txt
+!memory/email_setup_sop.md
+
+# L4 session archiver (only the script, not archives)
+!memory/L4_raw_sessions/
+memory/L4_raw_sessions/*
+!memory/L4_raw_sessions/compress_session.py
+
+# ljqCtrl related tools
+!memory/ljqCtrl.py
+!memory/ljqCtrl_sop.md
+
+# procmem_scanner related tools
+!memory/procmem_scanner.py
+!memory/procmem_scanner_sop.md
+
+# TMWebDriver SOP
+!memory/tmwebdriver_sop.md
+
+# Vue3 Component SOP
+!memory/vue3_component_sop.md
+
+# Subagent SOP
+!memory/subagent_sop.md
+
+# Supervisor SOP
+!memory/supervisor_sop.md
+
+# Plan SOP
+!memory/plan_sop.md
+
+# Goal Mode SOP
+!memory/goal_mode_sop.md
+
+# Goal Hive Mode SOP
+!memory/goal_hive_sop.md
+
+# Skill Search SOP
+!memory/skill_search/
+!memory/skill_search/**
+
+# dp related tools
+!memory/dp/
+!memory/dp/**
+
+# ADB UI tool
+!memory/adb_ui.py
+
+# Keychain
+!memory/keychain.py
+
+# Vision / OCR / UI detection tools
+!memory/ocr_utils.py
+!memory/vision_sop.md
+!memory/ui_detect.py
+!memory/vision_api.template.py
+
+# Memory management
+!memory/memory_cleanup_sop.md
+
+# Code Review Principles
+!memory/code_review_principles.md
+
+# Review Mode SOP
+!memory/review_sop.md
+
+# Capability inventory (R2 产出)
+!memory/l3_capability_inventory.md
+
+# Visual Studio
+.vs/
+restore_commit.txt
+
+# 任务定义 JSON + fallback shell 入版本控制 (白名单)
+# 不放 done/ (产物) / scheduler.log (运行时日志) / 其他子目录
+sche_tasks/
+sche_tasks/done/
+sche_tasks/scheduler.log
+sche_tasks/*.log
+!sche_tasks/*.json
+!sche_tasks/*.sh
+# CDP Bridge 密钥配置（首次运行自动生成）
+TMWebDriver/tmwd_cdp_bridge/config.js
+assets/copilot_proxy.pyw
+**log.*
+
+# Daily report runtime artifacts (PID lock + per-day raw input data)
+scheduler.pid
+report_data_*.json
+
+# Plugins
+!plugins/__init__.py
+
+# Reflect (ignore new files, whitelist existing)
+reflect/*
+!reflect/autonomous.py
+!reflect/scheduler.py
+!reflect/agent_team_worker.py
+!reflect/goal_mode.py
+
+# Universal: never track __pycache__ anywhere
+**/__pycache__/
+
+.claude/
+
+# git worktrees
+.worktrees/
+
+# Agent tooling runtime state (Claude Code / local-only)
+.superpowers/

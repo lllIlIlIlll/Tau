@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "schema_version": "1.0",
+    "updated_at": "2026-06-20",
+    "used_by": "mailer/tauchain.infer_provider",
+    "spec": "docs/specs/2026-06-20-email-config-ux-design.md",
+    "notes": "按邮箱域名匹配 SMTP 参数。匹配不到走手填。本文件不含任何凭据，可放心 commit。"
+  },
+  "providers": [
+    {"domain": "qq.com",       "host": "smtp.qq.com",       "port": 465, "ssl": true,  "auth": "password"},
+    {"domain": "163.com",      "host": "smtp.163.com",      "port": 465, "ssl": true,  "auth": "password"},
+    {"domain": "126.com",      "host": "smtp.126.com",      "port": 465, "ssl": true,  "auth": "password"},
+    {"domain": "gmail.com",    "host": "smtp.gmail.com",    "port": 587, "ssl": false, "auth": "password", "note": "需在 Google 账号→安全性→应用专用密码生成，非账号密码"},
+    {"domain": "outlook.com",  "host": "smtp.office365.com","port": 587, "ssl": false, "auth": "password"},
+    {"domain": "hotmail.com",  "host": "smtp.office365.com","port": 587, "ssl": false, "auth": "password"},
+    {"domain": "yahoo.com",    "host": "smtp.mail.yahoo.com","port": 465, "ssl": true,  "auth": "password"},
+    {"domain": "foxmail.com",  "host": "smtp.qq.com",       "port": 465, "ssl": true,  "auth": "password"}
+  ],
+  "default_port_ssl": 465,
+  "default_port_starttls": 587
+}

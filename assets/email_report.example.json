@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Tau 日报邮件推送配置示例 (SMTP via QQ Mail)",
+    "interactive_setup": "在 Tau agent 内说'配置邮箱'，agent 读 memory/email_setup_sop.md 引导完成",
+    "spec": "docs/specs/2026-06-20-email-config-ux-design.md",
+    "notes": "脚本仅读取下方的 smtp_* / pass_key / sender_name / recipients / subject / body 字段；其他键（如 _meta 等）若存在则被忽略，不会触发错误。"
+  },
+  "smtp_host": "smtp.qq.com",
+  "smtp_port": 465,
+  "smtp_timeout": 30,
+  "smtp_user": "you@qq.com",
+  "pass_key": "email_smtp_pass",
+  "sender_name": "Tau 日报",
+  "recipients": ["recipient@example.com"],
+  "subject": "Tau 日报 {date}",
+  "body": "附件为 {date} 日报，自动发送。"
+}
