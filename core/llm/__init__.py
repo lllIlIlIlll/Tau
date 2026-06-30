@@ -1,5 +1,14 @@
 """Tau LLM layer — split out of the original monolithic LLM core module.
 
+Layout (post-2026-06-30 refactor):
+- keys.py         — taukey 加载/缓存
+- transport.py    — URL 构造、SSE 重试、usage、日志、safeprint
+- session.py      — BaseSession
+- clients.py      — ToolClient / NativeToolClient / MixinSession / 工厂
+- providers/      — 协议装订 + 流解析（claude / openai）
+- messages/       — 横向职责：消息/工具 schema 转换、历史压缩、响应解析
+                    (schema.py / history.py / response.py)
+
 Public API (stable):
 - Sessions:  BaseSession, ClaudeSession, LLMSession, NativeClaudeSession, NativeOAISession, MixinSession
 - Clients:   ToolClient, NativeToolClient
@@ -8,11 +17,16 @@ Public API (stable):
 - Response:  MockFunction, MockToolCall, MockResponse, tryparse
 - Conv util: openai_tools_to_claude, auto_make_url
 
-Internal helpers (prefix `_`) live in the submodules (trim/transport/convert/
-response/providers) — import them from there, not from this package. The two
+Internal helpers (prefix `_`) live in the submodules (messages/{schema,history,response},
+transport, providers) — import them from there, not from this package. The two
 exceptions below are kept on the facade only because out-of-package consumers
 monkey-patch / read them: `_record_usage` (apps/common/cost_tracker),
 `_load_taukeys` (plugins/langfuse_tracing).
+
+Backward compat (via messages/__init__.py sys.modules alias):
+- core.llm.convert   → core.llm.messages.schema
+- core.llm.trim      → core.llm.messages.history
+- core.llm.response  → core.llm.messages.response
 """
 from .keys import reload_taukeys, _load_taukeys
 from .transport import auto_make_url, _record_usage
