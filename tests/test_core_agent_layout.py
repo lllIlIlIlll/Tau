@@ -40,3 +40,9 @@ def test_handler_module_importable():
     for do in ("do_code_run", "do_file_read", "do_file_write", "do_file_patch",
                "do_web_scan", "do_web_execute_js", "do_ask_user", "do_no_tool"):
         assert hasattr(TauHandler, do), f"TauHandler 缺 {do}"
+
+
+def test_runtime_module_importable():
+    from core.agent.runtime import Tau, get_system_prompt, load_tool_schema, main
+    assert Tau.__module__ == "core.agent.runtime"
+    assert callable(get_system_prompt) and callable(load_tool_schema) and callable(main)
