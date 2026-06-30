@@ -1,10 +1,9 @@
 """Client layer: ToolClient (text protocol) + NativeToolClient (native tools) + MixinSession (fallback) + factory."""
 import os, re, json, time
 from .keys import reload_taukeys
-from .trim import safeprint
-from .transport import _write_llm_log
-from .convert import openai_tools_to_claude
-from .response import MockToolCall, MockResponse, tryparse, _parse_text_tool_calls
+from .transport import safeprint, _write_llm_log
+from .messages.schema import openai_tools_to_claude
+from .messages.response import MockToolCall, MockResponse, tryparse, _parse_text_tool_calls
 from .providers.claude import ClaudeSession, NativeClaudeSession
 from .providers.openai import LLMSession, NativeOAISession
 print = safeprint
