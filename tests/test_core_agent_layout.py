@@ -29,3 +29,14 @@ def test_loop_no_upper_deps():
     src = inspect.getsource(m)
     assert "from .handler" not in src and "from .runtime" not in src
     assert "import core.agent.handler" not in src and "import core.agent.runtime" not in src
+
+
+def test_handler_module_importable():
+    from core.agent.handler import TauHandler
+    assert TauHandler.__module__ == "core.agent.handler"
+    # BaseHandler 子类契约（确保继承自 loop.BaseHandler，非旧 agent_loop）
+    from core.agent.loop import BaseHandler
+    assert issubclass(TauHandler, BaseHandler)
+    for do in ("do_code_run", "do_file_read", "do_file_write", "do_file_patch",
+               "do_web_scan", "do_web_execute_js", "do_ask_user", "do_no_tool"):
+        assert hasattr(TauHandler, do), f"TauHandler 缺 {do}"
