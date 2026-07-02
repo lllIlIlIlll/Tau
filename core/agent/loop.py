@@ -44,7 +44,11 @@ def _render_tool_call(verbose, name, args):
 
 def _run_dispatch(gen, verbose):
     """统一处理 dispatch 生成器:verbose 时透传 yield 并加围栏, 否则静默耗尽。
-    行为等价于原内嵌 proxy() + 围栏块。"""
+    行为等价于原内嵌 proxy() + 围栏块。
+
+    Empty `gen` short-circuits to `return e.value`, preserving dispatch()'s
+    return value for callers like `bad_json` (which never yields).
+    """
     try:
         first = next(gen)
     except StopIteration as e:
