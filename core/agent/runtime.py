@@ -59,20 +59,23 @@ def _init_plugins():
         return
     discover_and_load()
 
-def _init_tool_schema():
-    """tools_schema.json 默认加载（占位，PR-3 接管默认加载逻辑）。
+def _placeholder_for_pr3():
+    """占位：默认 tool schema 加载的具体策略待后续重构接管。
 
-    PR-2 范围内 `load_tool_schema()` 已经从「写全局 TOOLS_SCHEMA」改为「返回 dict」，
-    默认加载的实际触发推迟到 `Tau.__init__` 末尾（在使用前一次性填入 self.tools_schema）。"""
-    pass
+    当前默认加载已迁到 Tau.__init__ 末尾（一次性填入 self.tools_schema）。
+    此函数保留为可显式 raise 的守门,避免被静默跳过；后续重构若决定
+    纳入 bootstrap 副作用,请在此处实现或删除本占位。
+    """
+    raise NotImplementedError("placeholder_for_pr3: default tool schema load not yet wired")
 
 def bootstrap():
     """显式初始化 runtime 模块副作用。幂等。
 
     调用点：Tau.__init__ / main()（CLI 入口，覆盖 task / reflect / 交互三模式）。
-    副作用清单（8 类 → 8 个 _init_xxx）：
-      streams / lang / memory / cdp / plugins / tool_schema
-      （handler.py:2-3 的 stdout/stderr 不归本 PR，归 PR-5；本函数只管 runtime.py）
+    副作用清单（5 个 _init_xxx）：
+      streams / lang / memory / cdp / plugins
+      注：handler.py 内同类副作用不在本函数管辖范围，待 handler.py 重构时统一处理。
+      注：默认 tool schema 加载已迁到 Tau.__init__ 末尾，不在 bootstrap 副作用内。
     """
     global _bootstrapped
     if _bootstrapped: return
@@ -82,7 +85,6 @@ def bootstrap():
     _init_memory()
     _init_cdp()
     _init_plugins()
-    _init_tool_schema()
     _bootstrapped = True
 
 # ----------------------------------------------------------------------------
