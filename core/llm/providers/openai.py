@@ -9,6 +9,26 @@ print = safeprint
 
 _RESP_CACHE_KEY = str(uuid.uuid4())
 
+# 模型特定温度覆盖 (声明化): 与 PR-3 的 _LEGACY_CN_MODELS 同风格。
+# 新模型应配置驱动 (在 cfg 里加 _model_temp_overrides), 不应扩展此 dict。
+_MODEL_TEMP_OVERRIDES = {
+    'kimi': 1.0,             # kimi 系列强制 temperature=1
+    'moonshot': 1.0,         # moonshot 系列强制 temperature=1
+    'minimax': ('clamp', 0.01, 1.0),  # minimax 系列限制 (0.01, 1.0]
+}
+
+def _apply_model_temp_overrides(model_lower: str, temperature: float) -> float:
+    """Best-effort: 按模型名应用温度覆盖。
+    新模型应加配置字段 (在 cfg 里), 不应扩展 _MODEL_TEMP_OVERRIDES。
+    """
+    for prefix, override in _MODEL_TEMP_OVERRIDES.items():
+        if prefix in model_lower:
+            if isinstance(override, tuple) and override[0] == 'clamp':
+                _, lo, hi = override
+                return max(lo, min(temperature, hi))
+            return override
+    return temperature
+
 def _parse_openai_sse(resp_lines, api_mode="chat_completions"):
     """Parse OpenAI SSE stream (chat_completions or responses API).
     Yields text chunks, returns list[content_block].
@@ -136,9 +156,7 @@ def _parse_openai_json(data, api_mode="chat_completions"):
 def _openai_stream(sess, messages):
     model, api_mode = sess.model, sess.api_mode
     ml = model.lower()
-    temperature = sess.temperature
-    if 'kimi' in ml or 'moonshot' in ml: temperature = 1
-    elif 'minimax' in ml: temperature = max(0.01, min(temperature, 1.0))  # MiniMax requires temp in (0, 1]
+    temperature = _apply_model_temp_overrides(ml, sess.temperature)
     headers = {"Authorization": f"Bearer {sess.api_key}", "Content-Type": "application/json", "Accept": "text/event-stream"}
     if api_mode == "responses":
         url = auto_make_url(sess.api_base, "responses")
