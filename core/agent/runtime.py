@@ -59,15 +59,6 @@ def _init_plugins():
         return
     discover_and_load()
 
-def _placeholder_for_pr3():
-    """占位：默认 tool schema 加载的具体策略待后续重构接管。
-
-    当前默认加载已迁到 Tau.__init__ 末尾（一次性填入 self.tools_schema）。
-    此函数保留为可显式 raise 的守门,避免被静默跳过；后续重构若决定
-    纳入 bootstrap 副作用,请在此处实现或删除本占位。
-    """
-    raise NotImplementedError("placeholder_for_pr3: default tool schema load not yet wired")
-
 def bootstrap():
     """显式初始化 runtime 模块副作用。幂等。
 
