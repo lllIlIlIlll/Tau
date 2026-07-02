@@ -35,6 +35,31 @@ def exhaust(g):
         except StopIteration as e: return e.value
 
 
+def _render_tool_call(verbose, name, args):
+    """生成工具调用的渲染字符串。verbose 时输出含参数详情的围栏块;否则输出紧凑单行。"""
+    if verbose:
+        return f"🛠️ Tool: `{name}`  📥 args:\n````text\n{get_pretty_json(args)}\n````\n"
+    return f"🛠️ {name}({_compact_tool_args(name, args)})\n\n\n"
+
+
+def _run_dispatch(gen, verbose):
+    """统一处理 dispatch 生成器:verbose 时透传 yield 并加围栏, 否则静默耗尽。
+    行为等价于原内嵌 proxy() + 围栏块。"""
+    try:
+        first = next(gen)
+    except StopIteration as e:
+        return e.value
+    def wrapped():
+        yield first
+        return (yield from gen)
+    if not verbose:
+        return exhaust(wrapped())
+    yield '`````\n'
+    outcome = yield from wrapped()
+    yield '`````\n'
+    return outcome
+
+
 def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
                       max_turns=40, verbose=True, initial_user_content=None, yield_info=False):
     messages = [
@@ -70,18 +95,10 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema,
         for ii, tc in enumerate(tool_calls):
             tool_name, args, tid = tc['tool_name'], tc['args'], tc.get('id', '')
             if tool_name == 'no_tool': pass
-            else: 
-                if verbose: yield f"🛠️ Tool: `{tool_name}`  📥 args:\n````text\n{get_pretty_json(args)}\n````\n"
-                else: yield f"🛠️ {tool_name}({_compact_tool_args(tool_name, args)})\n\n\n"
+            else: yield _render_tool_call(verbose, tool_name, args)
             handler.current_turn = turn
             gen = handler.dispatch(tool_name, args, response, index=ii, tool_num=len(tool_calls))
-            try:
-                v = next(gen)
-                def proxy(): yield v; return (yield from gen)
-                if verbose: yield '`````\n'
-                outcome = (yield from proxy()) if verbose else exhaust(proxy())
-                if verbose: yield '`````\n'
-            except StopIteration as e: outcome = e.value
+            outcome = yield from _run_dispatch(gen, verbose)
             
             if outcome.should_exit: 
                 exit_reason = {'result': 'EXITED', 'data': outcome.data}; break
