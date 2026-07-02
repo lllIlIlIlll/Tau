@@ -123,8 +123,9 @@ class Tau:
         self.log_path = str(TEMP / f'model_responses/model_responses_{int(time.time()*1e6)%1000000:06d}.txt')
         self.load_llm_sessions()
         # PR-2 行为变更：load_tool_schema 不再写全局 TOOLS_SCHEMA，改为缓存到实例属性。
-        # PR-3 范围内会替换为本实例 _tool_schema_loader 工厂方法（按模型切换 suffix）。
-        self.tools_schema = load_tool_schema()
+        # PR-3：suffix 由 llmclient.backend.schema_suffix 提供（resolve_session 时已写入，
+        #       兼容老配置无 schema_suffix 字段时按 _LEGACY_CN_MODELS 兜底）。
+        self.tools_schema = load_tool_schema(getattr(self.llmclient.backend, 'schema_suffix', ''))
 
     def load_llm_sessions(self):
         taukeys, changed = reload_taukeys()
@@ -158,9 +159,8 @@ class Tau:
         try: self.llmclient.backend.history = lastc.backend.history
         except Exception: raise Exception('[ERROR] BAD Mixin config: Check your .tau/taukey.py (run `tau configure`)')
         self.llmclient.last_tools = ''
-        name = self.get_llm_name(model=True)
-        if 'glm' in name or 'minimax' in name or 'kimi' in name: self.tools_schema = load_tool_schema('_cn')
-        else: self.tools_schema = load_tool_schema()
+        # PR-3：suffix 一律从 backend 读（resolve_session 时已设置，兼容老配置走 _legacy_schema_suffix 兜底）。
+        self.tools_schema = load_tool_schema(getattr(self.llmclient.backend, 'schema_suffix', ''))
     def list_llms(self): 
         self.load_llm_sessions()
         return [(i, self.get_llm_name(b), i == self.llm_no) for i, b in enumerate(self.llmclients)]

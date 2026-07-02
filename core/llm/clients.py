@@ -8,6 +8,16 @@ from .providers.openai import LLMSession, NativeOAISession
 print = safeprint
 
 
+# 兼容层: 老用户在 taukey.py 里没显式写 schema_suffix 但模型名命中已知中文模型列表
+# 新模型只需加 schema_suffix='_cn' 配置, 不需要改这里
+_LEGACY_CN_MODELS = ('glm', 'minimax', 'kimi')
+
+def _legacy_schema_suffix(model_name: str) -> str:
+    """Best-effort: 老配置无 schema_suffix 字段时, 按模型名猜一个。
+    仅在 cfg 没显式声明时调用。新模型应配置驱动, 不应扩展此列表。"""
+    return '_cn' if any(s in (model_name or '').lower() for s in _LEGACY_CN_MODELS) else ''
+
+
 class ToolClient:
     def __init__(self, backend, auto_save_tokens=True):
         self.backend = backend
@@ -254,9 +264,16 @@ class NativeToolClient:
 def resolve_session(cfg_name):
     cfg = reload_taukeys()[0].get(cfg_name)
     if not cfg: raise ValueError(f"Config '{cfg_name}' not in taukey")
-    if 'native' in cfg_name: return (NativeClaudeSession if 'claude' in cfg_name else NativeOAISession)(cfg=cfg)
-    if 'claude' in cfg_name: return ClaudeSession(cfg=cfg)
-    return LLMSession(cfg=cfg) if 'oai' in cfg_name else None
+    if 'native' in cfg_name: sess = (NativeClaudeSession if 'claude' in cfg_name else NativeOAISession)(cfg=cfg)
+    elif 'claude' in cfg_name: sess = ClaudeSession(cfg=cfg)
+    elif 'oai' in cfg_name: sess = LLMSession(cfg=cfg)
+    else: return None
+    # schema_suffix 声明化 (PR-3): 优先读 cfg, 否则按模型名兜底
+    cfg_suffix = cfg.get('schema_suffix')
+    if cfg_suffix is None:
+        cfg_suffix = _legacy_schema_suffix(getattr(sess, 'model', '') or '')
+    sess.schema_suffix = cfg_suffix
+    return sess
 
 def resolve_client(cfg_name):
     s = resolve_session(cfg_name)
