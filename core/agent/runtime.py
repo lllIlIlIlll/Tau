@@ -157,8 +157,8 @@ class Tau:
         except Exception: raise Exception('[ERROR] BAD Mixin config: Check your .tau/taukey.py (run `tau configure`)')
         self.llmclient.last_tools = ''
         name = self.get_llm_name(model=True)
-        if 'glm' in name or 'minimax' in name or 'kimi' in name: load_tool_schema('_cn')
-        else: load_tool_schema()
+        if 'glm' in name or 'minimax' in name or 'kimi' in name: self.tools_schema = load_tool_schema('_cn')
+        else: self.tools_schema = load_tool_schema()
     def list_llms(self): 
         self.load_llm_sessions()
         return [(i, self.get_llm_name(b), i == self.llm_no) for i, b in enumerate(self.llmclients)]
