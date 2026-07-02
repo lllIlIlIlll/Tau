@@ -2,8 +2,7 @@
 import os, re, json, time
 from .keys import reload_taukeys
 from .transport import safeprint, _write_llm_log
-from .messages.schema import openai_tools_to_claude
-from .messages.response import MockToolCall, MockResponse, tryparse, _parse_text_tool_calls
+from .messages import openai_tools_to_claude, MockToolCall, MockResponse, tryparse, _parse_text_tool_calls
 from .providers.claude import ClaudeSession, NativeClaudeSession
 from .providers.openai import LLMSession, NativeOAISession
 print = safeprint

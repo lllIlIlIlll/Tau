@@ -1,4 +1,4 @@
-import importlib.util, json, os
+import importlib.util, os
 from core.paths import TAUKEY_PATH
 
 _taukey_path = _taukey_mtime = None
@@ -12,10 +12,6 @@ def _load_taukeys():
         mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
         _taukey_path = p
         return {k: v for k, v in vars(mod).items() if not k.startswith('_')}
-    legacy = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'taukey.json')
-    if os.path.exists(legacy):
-        _taukey_path = legacy
-        with open(legacy, encoding='utf-8') as f: return json.load(f)
     raise Exception(
         f'[ERROR] {p} not found. Run `tau configure` to generate one from taukey_template.'
     )

@@ -1,8 +1,8 @@
 """OpenAI-compatible API (chat/completions + responses) — parsers + Session classes."""
 import json, uuid
 from ..transport import safeprint, auto_make_url, _record_usage, _stream_with_retry
-from ..messages.schema import (_try_parse_tool_args, _stamp_oai_cache_markers, _prepare_oai_tools,
-                              _to_responses_input, _msgs_claude2oai, _fix_messages, _ensure_thinking_blocks)
+from ..messages import (_try_parse_tool_args, _stamp_oai_cache_markers, _prepare_oai_tools,
+                        _to_responses_input, _msgs_claude2oai, _fix_messages, _ensure_thinking_blocks)
 from ..session import BaseSession
 from .claude import NativeClaudeSession
 print = safeprint

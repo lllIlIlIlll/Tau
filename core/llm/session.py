@@ -1,6 +1,6 @@
 """Abstract Session base. Provider subclasses live in llm/providers/."""
 import json, threading
-from .messages.history import trim_messages_history
+from .messages import trim_messages_history
 from .transport import safeprint
 print = safeprint
 
