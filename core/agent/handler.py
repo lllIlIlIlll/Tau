@@ -25,6 +25,11 @@ from ..paths import MEMORY
 
 class TauHandler(BaseHandler):
     '''Tau 工具库，包含多种工具的实现。工具函数自动加上了 do_ 前缀。实际工具名没有前缀。'''
+
+    # ============================================================
+    # TauHandler 类 - 文件系统域
+    # ============================================================
+
     def __init__(self, parent, last_history=None, cwd='./temp'):
         self.parent = parent
         self.working = {}
@@ -37,10 +42,71 @@ class TauHandler(BaseHandler):
         if not path: return ""
         return os.path.abspath(os.path.join(self.cwd, path))
 
-    def _extract_code_block(self, response, code_type):
-        code_type = {'python':'python|py', 'powershell':'powershell|ps1|pwsh', 'bash':'bash|sh|shell'}.get(code_type, re.escape(code_type))
-        matches = re.findall(rf"```(?:{code_type})\n(.*?)\n```", response.content, re.DOTALL)
-        return matches[-1].strip() if matches else None
+    def do_file_read(self, args, response):
+        '''读取文件内容。从第start行开始读取。如有keyword则返回第一个keyword(忽略大小写)周边内容'''
+        path = self._get_abs_path(args.get("path", ""))
+        yield f"\n[Action] Reading file: {path}\n"
+        start = args.get("start", 1)
+        count = args.get("count", 200)
+        keyword = args.get("keyword")
+        show_linenos = args.get("show_linenos", True)
+        result = file_read(path, start=start, keyword=keyword,
+                           count=count, show_linenos=show_linenos)
+        if show_linenos and not result.startswith("Error:"): result = '由于设置了show_linenos，以下返回信息为：(行号|)内容 。\n' + result
+        if ' ... [TRUNCATED]' in result: result += '\n\n（某些行被截断，如需完整内容可改用 code_run 读取）'
+        maxlen = max(5000, 15000 // args.get('_tool_num', 1))
+        result = smart_format(result, max_str_len=maxlen, omit_str='\n\n[omitted long content]\n\n')
+        next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
+        log_memory_access(path)
+        if 'memory' in path or 'sop' in path:
+            next_prompt += "\n[SYSTEM TIPS] 正在读取记忆或SOP文件，若决定按sop执行请提取sop中的关键点（特别是靠后的）update working memory."
+        return StepOutcome(result, next_prompt=next_prompt)
+
+    def do_file_write(self, args, response):
+        '''用于对整个文件的大量处理，精细修改要用file_patch。
+        需要将要写入的内容放在<file_content>标签内，或者放在代码块中'''
+        path = self._get_abs_path(args.get("path", ""))
+        mode = args.get("mode", "overwrite")  # overwrite/append/prepend
+        action_str = {"prepend": "Prepending to", "append": "Appending to"}.get(mode, "Overwriting")
+        yield f"[Action] {action_str} file: {os.path.basename(path)}\n"
+        content = args.get('content') or self._extract_file_content(response.content)
+        if not content:
+            yield f"[Status] ❌ 失败: 未在回复中找到<file_content>代码块内容\n"
+            return StepOutcome({"status": "error", "msg": "No content found. Blank is not supported. Put content inside <file_content>...</file_content> tags in your reply body before call file_write."}, next_prompt="\n")
+        try: content = expand_file_refs(content, base_dir=self.cwd)
+        except ValueError as e:
+            yield f"[Status] ❌ 引用展开失败: {e}\n"
+            return StepOutcome({"status": "error", "msg": str(e)}, next_prompt="\n")
+        result = file_write(path, content, mode)
+        ok = result.get("status") == "success"
+        yield f"[Status] {'✅ ' + mode.capitalize() + ' 成功' if ok else '❌ 写入失败: ' + str(result.get('msg', ''))} ({result.get('writed_bytes', 0)} bytes)\n"
+        next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
+        return StepOutcome(result, next_prompt=next_prompt)
+
+    def do_file_patch(self, args, response):
+        path = self._get_abs_path(args.get("path", ""))
+        yield f"[Action] Patching file: {path}\n"
+        old_content = args.get("old_content", "")
+        new_content = args.get("new_content", "")
+        try: new_content = expand_file_refs(new_content, base_dir=self.cwd)
+        except ValueError as e:
+            yield f"[Status] ❌ 引用展开失败: {e}\n"
+            return StepOutcome({"status": "error", "msg": str(e)}, next_prompt="\n")
+        result = file_patch(path, old_content, new_content)
+        yield f"\n{str(result)}\n"
+        next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
+        return StepOutcome(result, next_prompt=next_prompt)
+
+    def _extract_file_content(self, text):
+        tags = re.findall(r"<file_content[^>]*>(.*?)</file_content>", text, re.DOTALL)
+        if tags: return tags[-1].strip()
+        blocks = re.findall(r"```[^\n]*\n([\s\S]*?)```", text)
+        if blocks: return blocks[-1].strip()
+        return None
+
+    # ============================================================
+    # TauHandler 类 - 代码执行域
+    # ============================================================
 
     def do_code_run(self, args, response):
         '''执行代码片段，有长度限制，不允许代码中放大量数据，如有需要应当通过文件读取进行。'''
@@ -75,6 +141,15 @@ class TauHandler(BaseHandler):
         result = ask_user(question, candidates)
         yield f"Waiting for your answer ...\n"
         return StepOutcome(result, next_prompt="", should_exit=True)
+
+    def _extract_code_block(self, response, code_type):
+        code_type = {'python':'python|py', 'powershell':'powershell|ps1|pwsh', 'bash':'bash|sh|shell'}.get(code_type, re.escape(code_type))
+        matches = re.findall(rf"```(?:{code_type})\n(.*?)\n```", response.content, re.DOTALL)
+        return matches[-1].strip() if matches else None
+
+    # ============================================================
+    # TauHandler 类 - 网络域
+    # ============================================================
 
     def do_web_scan(self, args, response):
         '''获取当前页面内容和标签页列表。也可用于切换标签页。
@@ -119,77 +194,9 @@ class TauHandler(BaseHandler):
         maxlen = max(2000, 8000 // args.get('_tool_num', 1))
         return StepOutcome(smart_format(result, max_str_len=maxlen), next_prompt=next_prompt)
 
-    def do_file_patch(self, args, response):
-        path = self._get_abs_path(args.get("path", ""))
-        yield f"[Action] Patching file: {path}\n"
-        old_content = args.get("old_content", "")
-        new_content = args.get("new_content", "")
-        try: new_content = expand_file_refs(new_content, base_dir=self.cwd)
-        except ValueError as e:
-            yield f"[Status] ❌ 引用展开失败: {e}\n"
-            return StepOutcome({"status": "error", "msg": str(e)}, next_prompt="\n")
-        result = file_patch(path, old_content, new_content)
-        yield f"\n{str(result)}\n"
-        next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
-        return StepOutcome(result, next_prompt=next_prompt)
-
-    def _extract_file_content(self, text):
-        tags = re.findall(r"<file_content[^>]*>(.*?)</file_content>", text, re.DOTALL)
-        if tags: return tags[-1].strip()
-        blocks = re.findall(r"```[^\n]*\n([\s\S]*?)```", text)
-        if blocks: return blocks[-1].strip()
-        return None
-
-    def do_file_write(self, args, response):
-        '''用于对整个文件的大量处理，精细修改要用file_patch。
-        需要将要写入的内容放在<file_content>标签内，或者放在代码块中'''
-        path = self._get_abs_path(args.get("path", ""))
-        mode = args.get("mode", "overwrite")  # overwrite/append/prepend
-        action_str = {"prepend": "Prepending to", "append": "Appending to"}.get(mode, "Overwriting")
-        yield f"[Action] {action_str} file: {os.path.basename(path)}\n"
-        content = args.get('content') or self._extract_file_content(response.content)
-        if not content:
-            yield f"[Status] ❌ 失败: 未在回复中找到<file_content>代码块内容\n"
-            return StepOutcome({"status": "error", "msg": "No content found. Blank is not supported. Put content inside <file_content>...</file_content> tags in your reply body before call file_write."}, next_prompt="\n")
-        try: content = expand_file_refs(content, base_dir=self.cwd)
-        except ValueError as e:
-            yield f"[Status] ❌ 引用展开失败: {e}\n"
-            return StepOutcome({"status": "error", "msg": str(e)}, next_prompt="\n")
-        result = file_write(path, content, mode)
-        ok = result.get("status") == "success"
-        yield f"[Status] {'✅ ' + mode.capitalize() + ' 成功' if ok else '❌ 写入失败: ' + str(result.get('msg', ''))} ({result.get('writed_bytes', 0)} bytes)\n"
-        next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
-        return StepOutcome(result, next_prompt=next_prompt)
-
-    def do_file_read(self, args, response):
-        '''读取文件内容。从第start行开始读取。如有keyword则返回第一个keyword(忽略大小写)周边内容'''
-        path = self._get_abs_path(args.get("path", ""))
-        yield f"\n[Action] Reading file: {path}\n"
-        start = args.get("start", 1)
-        count = args.get("count", 200)
-        keyword = args.get("keyword")
-        show_linenos = args.get("show_linenos", True)
-        result = file_read(path, start=start, keyword=keyword,
-                           count=count, show_linenos=show_linenos)
-        if show_linenos and not result.startswith("Error:"): result = '由于设置了show_linenos，以下返回信息为：(行号|)内容 。\n' + result
-        if ' ... [TRUNCATED]' in result: result += '\n\n（某些行被截断，如需完整内容可改用 code_run 读取）'
-        maxlen = max(5000, 15000 // args.get('_tool_num', 1))
-        result = smart_format(result, max_str_len=maxlen, omit_str='\n\n[omitted long content]\n\n')
-        next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
-        log_memory_access(path)
-        if 'memory' in path or 'sop' in path:
-            next_prompt += "\n[SYSTEM TIPS] 正在读取记忆或SOP文件，若决定按sop执行请提取sop中的关键点（特别是靠后的）update working memory."
-        return StepOutcome(result, next_prompt=next_prompt)
-
-    def _in_plan_mode(self): return self.working.get('in_plan_mode')
-    def _exit_plan_mode(self): self.working.pop('in_plan_mode', None)
-    def enter_plan_mode(self, plan_path):
-        self.working['in_plan_mode'] = plan_path; self.max_turns = 100
-        print(f"[Info] Entered plan mode with plan file: {plan_path}"); return plan_path
-    def _check_plan_completion(self):
-        if not os.path.isfile(p:=self._in_plan_mode() or ''): return None
-        try: return len(re.findall(r'\[ \]', open(p, encoding='utf-8', errors='replace').read()))
-        except Exception: return None
+    # ============================================================
+    # TauHandler 类 - 记忆与工作记忆域
+    # ============================================================
 
     def do_update_working_checkpoint(self, args, response):
         '''为整个任务设定后续需要临时记忆的重点。'''
@@ -202,10 +209,36 @@ class TauHandler(BaseHandler):
         next_prompt = self._get_anchor_prompt(skip=args.get('_index', 0) > 0)
         return StepOutcome({"result": "working key_info updated"}, next_prompt=next_prompt)
 
-    def _retry_or_exit(self, prompt):
-        self._empty_ct = getattr(self, '_empty_ct', 0) + 1
-        if self._empty_ct >= 3: return StepOutcome({}, should_exit=True)
-        return StepOutcome({}, next_prompt=prompt)
+    def do_start_long_term_update(self, args, response):
+        '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。'''
+        prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实、用户偏好、重要步骤，更新记忆。
+本工具是标记开启结算过程，若已在更新记忆过程或没有值得记忆的点，忽略本次调用。
+**如果没有经验证的，未来能用上的信息，忽略本次调用！**
+**只能提取行动验证成功的信息**：
+- **环境事实**（路径/凭证/配置）→ `file_patch` 更新 L2，同步 L1
+- **复杂任务经验**（关键坑点/前置条件/重要步骤）→ L3 精简 SOP（只记你被坑得多次重试的核心要点）
+**禁止**：临时变量、具体推理过程、未验证信息、通用常识、你可以轻松复现的细节、只是做了但没有验证的信息
+**操作**：严格遵循提供的L0的记忆更新SOP。先 `file_read` 看现有 → 判断类型 → 最小化更新 → 无新内容跳过，保证对记忆库最小局部修改。\n
+''' + get_global_memory()
+        yield "[Info] Start distilling good memory for long-term storage.\n"
+        path = str(MEMORY / 'memory_management_sop.md')
+        if os.path.exists(path): result = 'This is L0:\n' + file_read(path, show_linenos=False)
+        else: result = "Memory Management SOP not found. Do not update memory."
+        return StepOutcome(result, next_prompt=prompt)
+
+    def _in_plan_mode(self): return self.working.get('in_plan_mode')
+    def _exit_plan_mode(self): self.working.pop('in_plan_mode', None)
+    def enter_plan_mode(self, plan_path):
+        self.working['in_plan_mode'] = plan_path; self.max_turns = 100
+        print(f"[Info] Entered plan mode with plan file: {plan_path}"); return plan_path
+    def _check_plan_completion(self):
+        if not os.path.isfile(p:=self._in_plan_mode() or ''): return None
+        try: return len(re.findall(r'\[ \]', open(p, encoding='utf-8', errors='replace').read()))
+        except Exception: return None
+
+    # ============================================================
+    # TauHandler 类 - 特殊工具 (no_tool)
+    # ============================================================
 
     def do_no_tool(self, args, response):
         '''这是一个特殊工具，由引擎自主调用，不要包含在TOOLS_SCHEMA里。
@@ -255,22 +288,14 @@ class TauHandler(BaseHandler):
         yield "[Info] Final response to user.\n"
         return StepOutcome(response, next_prompt=None)
 
-    def do_start_long_term_update(self, args, response):
-        '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。'''
-        prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实、用户偏好、重要步骤，更新记忆。
-本工具是标记开启结算过程，若已在更新记忆过程或没有值得记忆的点，忽略本次调用。
-**如果没有经验证的，未来能用上的信息，忽略本次调用！**
-**只能提取行动验证成功的信息**：
-- **环境事实**（路径/凭证/配置）→ `file_patch` 更新 L2，同步 L1
-- **复杂任务经验**（关键坑点/前置条件/重要步骤）→ L3 精简 SOP（只记你被坑得多次重试的核心要点）
-**禁止**：临时变量、具体推理过程、未验证信息、通用常识、你可以轻松复现的细节、只是做了但没有验证的信息
-**操作**：严格遵循提供的L0的记忆更新SOP。先 `file_read` 看现有 → 判断类型 → 最小化更新 → 无新内容跳过，保证对记忆库最小局部修改。\n
-''' + get_global_memory()
-        yield "[Info] Start distilling good memory for long-term storage.\n"
-        path = str(MEMORY / 'memory_management_sop.md')
-        if os.path.exists(path): result = 'This is L0:\n' + file_read(path, show_linenos=False)
-        else: result = "Memory Management SOP not found. Do not update memory."
-        return StepOutcome(result, next_prompt=prompt)
+    def _retry_or_exit(self, prompt):
+        self._empty_ct = getattr(self, '_empty_ct', 0) + 1
+        if self._empty_ct >= 3: return StepOutcome({}, should_exit=True)
+        return StepOutcome({}, next_prompt=prompt)
+
+    # ============================================================
+    # TauHandler 类 - 通用 helper 与 turn_end_callback
+    # ============================================================
 
     def _fold_earlier(self, lines):
         FALLBACK = '直接回答了用户问题'
