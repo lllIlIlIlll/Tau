@@ -91,7 +91,7 @@ oai_config = {
 通过 `tau` 命令(等价于 `python -m tau_cli`)选择前端:
 
 ```bash
-tau cli        # CLI 对话,最轻量(core/taumain.py)
+tau cli        # CLI 对话,最轻量(core/taumain.py → shim of core/agent/runtime)
 tau tui        # 终端图形界面(Textual),适合 SSH / 纯终端
 tau gui        # 桌面聊天界面(PySide6)
 tau launch     # 原生窗口壳(pywebview)
@@ -133,7 +133,7 @@ tau list       # 列出全部命令
 
 ```
 Tau/
-├── core/         # 智能体内核 ~1.8K 行:agent_loop · handler · taumain · llm/ · tools/
+├── core/         # 智能体内核:agent/{loop,format,handler,runtime} · taumain(shim) · handler(shim) · llm/ · tools/
 ├── apps/         # 多前端:common · cli · tui · gui · web · pet · desktop · im · hub
 ├── memory/       # 技能库:.py 是工具(Agent import 调用),.md 是 SOP(Agent 阅读执行)
 ├── reflect/      # 高级模式:自主运行 · 目标模式 · 子代理团队 · 调度器

@@ -1,7 +1,7 @@
 import os, re, time, requests
 from datetime import datetime
 from ..paths import TEMP
-from .trim import safeprint
+from .messages import safeprint
 print = safeprint
 
 def auto_make_url(base, path):
