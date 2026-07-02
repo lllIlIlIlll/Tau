@@ -1,53 +1,115 @@
 import os, sys, threading, queue, time, json, re, random, locale
-os.environ.setdefault('GA_LANG', 'zh' if any(k in (locale.getlocale()[0] or '').lower() for k in ('zh', 'chinese')) else 'en')
-if sys.stdout is None: sys.stdout = open(os.devnull, "w")
-elif hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(errors='replace')
-if sys.stderr is None: sys.stderr = open(os.devnull, "w")
-elif hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(errors='replace')
-
 from ..llm.keys import reload_taukeys
 from ..llm.clients import ToolClient, NativeToolClient, MixinSession, resolve_client
 from ..llm.providers.openai import LLMSession, NativeOAISession
 from ..llm.providers.claude import ClaudeSession, NativeClaudeSession
 from .loop import agent_runner_loop
-try:
-    from plugins.hooks import discover_and_load; discover_and_load()
-except Exception: pass
 from .handler import TauHandler
 from ..tools.utils import smart_format, get_global_memory, format_error, consume_file
 from ..paths import TAU_HOME, MEMORY, ASSETS, TEMP
 
+# ----------------------------------------------------------------------------
+# 模块级常量（纯计算，零副作用）
+# ----------------------------------------------------------------------------
 script_dir = str(TAU_HOME / "core")
-def load_tool_schema(suffix=''):
-    global TOOLS_SCHEMA
-    TS = open(str(ASSETS / f'tools_schema{suffix}.json'), 'r', encoding='utf-8').read()
-    TOOLS_SCHEMA = json.loads(TS if os.name == 'nt' else TS.replace('powershell', 'bash'))
-load_tool_schema()
 
-lang_suffix = '_en' if os.environ.get('GA_LANG', '') == 'en' else ''
-mem_dir = str(MEMORY)
-if not os.path.exists(mem_dir): os.makedirs(mem_dir)
-mem_txt = str(MEMORY / 'global_mem.txt')
-if not os.path.exists(mem_txt): open(mem_txt, 'w', encoding='utf-8').write('# [Global Memory - L2]\n')
-mem_insight = str(MEMORY / 'global_mem_insight.txt')
-if not os.path.exists(mem_insight):
-    t = str(ASSETS / f'template/global_mem_insight_template{lang_suffix}.txt')
-    open(mem_insight, 'w', encoding='utf-8').write(open(t, encoding='utf-8').read() if os.path.exists(t) else '')
-cdp_cfg = str(TAU_HOME / 'TMWebDriver/tmwd_cdp_bridge/config.js')
-if not os.path.exists(cdp_cfg):
+# 幂等保护 —— bootstrap() 多重调用安全
+_bootstrapped = False
+
+# ----------------------------------------------------------------------------
+# bootstrap() —— 显式初始化入口
+# ----------------------------------------------------------------------------
+def _init_streams():
+    """stdout/stderr 兜底与编码修复（pythonw / subprocess 场景）。"""
+    for name in ('stdout', 'stderr'):
+        s = getattr(sys, name)
+        if s is None: setattr(sys, name, open(os.devnull, 'w'))
+        elif hasattr(s, 'reconfigure'): s.reconfigure(errors='replace')
+
+def _init_lang():
+    """GA_LANG 默认值（locale 探测）。必须在任何读 os.environ.get('GA_LANG') 的代码之前。"""
+    is_zh = any(k in (locale.getlocale()[0] or '').lower() for k in ('zh', 'chinese'))
+    os.environ.setdefault('GA_LANG', 'zh' if is_zh else 'en')
+
+def _init_memory():
+    """memory dir + global_mem.txt + global_mem_insight.txt 种子文件。"""
+    MEMORY.mkdir(parents=True, exist_ok=True)
+    mem = MEMORY / 'global_mem.txt'
+    if not mem.exists(): mem.write_text('# [Global Memory - L2]\n', encoding='utf-8')
+    insight = MEMORY / 'global_mem_insight.txt'
+    if not insight.exists():
+        t = ASSETS / f'template/global_mem_insight_template{lang_suffix()}.txt'
+        insight.write_text(t.read_text(encoding='utf-8') if t.exists() else '', encoding='utf-8')
+
+def _init_cdp():
+    """TMWebDriver CDP config.js 初始化。失败仅警告（按失败半径）。"""
+    cfg = TAU_HOME / 'TMWebDriver/tmwd_cdp_bridge/config.js'
+    if cfg.exists(): return
     try:
-        os.makedirs(os.path.dirname(cdp_cfg), exist_ok=True)
-        open(cdp_cfg, 'w', encoding='utf-8').write(f"const TID = '__ljq_{hex(random.randint(0, 99999999))[2:8]}';")
-    except Exception as e: print(f'[WARN] CDP config init failed: {e} — advanced web features (tmwebdriver) will be unavailable.')
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text(f"const TID = '__ljq_{hex(random.randint(0, 99999999))[2:8]}';", encoding='utf-8')
+    except OSError as e:
+        print(f'[WARN] CDP config init failed: {e} — advanced web features (tmwebdriver) will be unavailable.')
+
+def _init_plugins():
+    """插件发现与加载。插件不存在则静默（琐碎），插件错误则 fail loud。"""
+    try:
+        from plugins.hooks import discover_and_load
+    except ImportError:
+        return
+    discover_and_load()
+
+def _init_tool_schema():
+    """tools_schema.json 默认加载（占位，PR-3 接管默认加载逻辑）。
+
+    PR-2 范围内 `load_tool_schema()` 已经从「写全局 TOOLS_SCHEMA」改为「返回 dict」，
+    默认加载的实际触发推迟到 `Tau.__init__` 末尾（在使用前一次性填入 self.tools_schema）。"""
+    pass
+
+def bootstrap():
+    """显式初始化 runtime 模块副作用。幂等。
+
+    调用点：Tau.__init__ / main()（CLI 入口，覆盖 task / reflect / 交互三模式）。
+    副作用清单（8 类 → 8 个 _init_xxx）：
+      streams / lang / memory / cdp / plugins / tool_schema
+      （handler.py:2-3 的 stdout/stderr 不归本 PR，归 PR-5；本函数只管 runtime.py）
+    """
+    global _bootstrapped
+    if _bootstrapped: return
+    # 注意：lang 必须早于所有读 GA_LANG 的代码（memory / schema / sys_prompt 都依赖）。
+    _init_streams()
+    _init_lang()
+    _init_memory()
+    _init_cdp()
+    _init_plugins()
+    _init_tool_schema()
+    _bootstrapped = True
+
+# ----------------------------------------------------------------------------
+# 公开 API
+# ----------------------------------------------------------------------------
+def lang_suffix():
+    """基于当前 GA_LANG 返回 `_en` 或空串。函数形式而非模块级缓存（GA_LANG 在 bootstrap 时设置）。"""
+    return '_en' if os.environ.get('GA_LANG', '') == 'en' else ''
+
+def load_tool_schema(suffix=''):
+    """加载 tools_schema{suffix}.json 并返回 dict（不再写入模块全局 TOOLS_SCHEMA）。
+
+    PR-2 行为变更：从此函数返回值，不再有 side effect（除读文件外）。
+    调用方：Tau.__init__ 用 self.tools_schema = load_tool_schema() 缓存到实例。
+    """
+    TS = open(str(ASSETS / f'tools_schema{suffix}.json'), 'r', encoding='utf-8').read()
+    return json.loads(TS if os.name == 'nt' else TS.replace('powershell', 'bash'))
 
 def get_system_prompt():
-    with open(str(ASSETS / f'prompts/sys_prompt{lang_suffix}.txt'), 'r', encoding='utf-8') as f: prompt = f.read()
+    with open(str(ASSETS / f'prompts/sys_prompt{lang_suffix()}.txt'), 'r', encoding='utf-8') as f: prompt = f.read()
     prompt += f"\nToday: {time.strftime('%Y-%m-%d %a')}\n"
     prompt += get_global_memory()
     return prompt
 
 class Tau:
     def __init__(self):
+        bootstrap()  # 模块副作用显式化（幂等）—— 必须在 self.tools_schema 填充前
         os.makedirs(str(TEMP), exist_ok=True)
         self.lock = threading.Lock()
         self.task_dir = None
@@ -58,6 +120,9 @@ class Tau:
         self.peer_hint = True
         self.log_path = str(TEMP / f'model_responses/model_responses_{int(time.time()*1e6)%1000000:06d}.txt')
         self.load_llm_sessions()
+        # PR-2 行为变更：load_tool_schema 不再写全局 TOOLS_SCHEMA，改为缓存到实例属性。
+        # PR-3 范围内会替换为本实例 _tool_schema_loader 工厂方法（按模型切换 suffix）。
+        self.tools_schema = load_tool_schema()
 
     def load_llm_sessions(self):
         taukeys, changed = reload_taukeys()
@@ -151,7 +216,7 @@ class Tau:
                 if ps > 0: handler.working['key_info'] += f'\n[SYSTEM] 此为 {ps} 个对话前设置的key_info，若已在新任务，先更新或清除工作记忆。\n'
             self.handler = handler  # although new handler, the **full** history is in llmclient, so it is full history!
             self.llmclient.log_path = self.log_path
-            gen = agent_runner_loop(self.llmclient, sys_prompt, raw_query, handler, TOOLS_SCHEMA, 
+            gen = agent_runner_loop(self.llmclient, sys_prompt, raw_query, handler, self.tools_schema,
                                     max_turns=80, verbose=self.verbose, yield_info=True)
             try:
                 full_resp = ""; last_pos = 0; curr_turn = 0; turn_resps = []
@@ -178,6 +243,7 @@ class Tau:
                 self.task_queue.task_done()
                 if self.handler is not None: self.handler.code_stop_signal.append(1)
 def main():
+    bootstrap()  # CLI 入口：覆盖 task / reflect / 交互三模式，必须先做（幂等）
     import argparse
     from datetime import datetime
     parser = argparse.ArgumentParser()
